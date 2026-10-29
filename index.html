@@ -685,19 +685,25 @@ function drawFoam(T) {
   ctx.globalAlpha = 1;
 }
 
-// 柔化：整张画面缩到三分之一再放回来，浪身和拖尾一起晕开
+// 柔化：整张画面每帧过一次高斯模糊，浪身和拖尾一起晕开
 // 不用 p5 的 filter(BLUR)：它走 WebGL，微信里只处理到屏幕上半截，下面整块变空
+// 也不能缩小再放大：每帧叠加会糊成马赛克方块
 let SOFT;
+const CAN_BLUR = 'filter' in CanvasRenderingContext2D.prototype;
 function soften() {
-  const ctx = drawingContext, w = W / 3, h = H / 3;
-  if (!SOFT || SOFT.width !== Math.ceil(w) || SOFT.height !== Math.ceil(h)) {
+  if (!CAN_BLUR) return;
+  const ctx = drawingContext;
+  if (!SOFT || SOFT.width !== W || SOFT.height !== H) {
     SOFT = document.createElement('canvas');
-    SOFT.width = Math.ceil(w); SOFT.height = Math.ceil(h);
+    SOFT.width = W; SOFT.height = H;
   }
   const g = SOFT.getContext('2d');
-  g.imageSmoothingEnabled = ctx.imageSmoothingEnabled = true;
-  g.drawImage(ctx.canvas, 0, 0, w, h);
-  ctx.drawImage(SOFT, 0, 0, w, h, 0, 0, W, H);
+  g.clearRect(0, 0, W, H);
+  g.drawImage(ctx.canvas, 0, 0);
+  ctx.save();
+  ctx.filter = 'blur(2.4px)';
+  ctx.drawImage(SOFT, 0, 0);
+  ctx.restore();
 }
 
 function dot(ctx, x, y, r, a) {
