@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>海棠 · 棠叙</title>
+<title>虚恋 · 闲执</title>
 <style>
   @font-face { font-family: "Cormorant"; src: url(fonts/CormorantGaramond-normal500.woff2) format("woff2"); font-weight: 500; font-display: swap; }
   @font-face { font-family: "Cormorant"; src: url(fonts/CormorantGaramond-italic400.woff2) format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
@@ -330,59 +330,61 @@
 //  内容：要改文字、链接、图片，只改这里
 // ======================================================================
 const DATA = {
-  name: '海棠',
-  alias: '棠叙',
-  script: 'Haitang',
+  name: '闲执',
+  alias: '虚恋',
+  script: 'XianZhi',
 
   // 星图：按连线顺序排列，[小标题, 内容]
   info: [
-    ['名字', '海棠 · 棠叙'],
-    ['年龄', '21'],
-    ['MBTI', 'ISFJ'],
-    ['星座', '金牛座'],
+    ['名字', '闲执'],
+    ['年龄', '20'],
+    ['MBTI', 'INFJ'],
+    ['星座', '天蝎座'],
     ['性取向', 'Le-H'],
   ],
 
   // 月相：主风格随月亮由缺到圆依次出现；副风格绕着月亮转
-  mainStyle: ['高恋', '钓系', '引导', '恶趣味'],
-  subStyle: ['安抚', '微文艺', '动物塑', '占有', '伪下', '动描微 / 高擦'],
+  mainStyle: ['温柔', '引导', '白话流'],
+  subStyle: ['钓系', '动描', '恶趣味'],
 
   // 须知：两句金句（\n 是换行）+ 两组条目
-  quote1: '「容纳爱人的\n所有闷闷不乐」',
+  quote1: '「我是一个会爱女人的女人」',
   rules1: [
-    '上线默认恋人',
-    '提前说好喜点与雷点，否则踩雷概不负责',
-    '不适请告知，称呼"小棠"我会停止',
-    '单内话术禁止模仿 / 抄袭 / 传播',
-    '不满意：半小时 5min 换人，一小时 10min',
+    '拒接男板! 点单一律视为送单',
+    '我想知道你的名字，可以告诉我你的名字或是你想听的昵称',
+    '约会中如果感到不适，可以和我说“我们换个秋天见”，我会及时调整',
+    '在恋爱中不可以把我当作替身噢，如果需要，可以商量后下替身单',
+    '下单默认恋人关系，别提你的小三小四小五小六好吗老婆🥺',
   ],
-  quote2: '「爱是一面镜子」',
+  quote2: '「无法做到百分百平权望谅解」',
   quote2En: 'Love is a mirror',
   rules2: [
-    '换过后不退不换',
-    '拒绝单内不尊重行为 / 抽象 / 不配合',
-    '过分退单默认回合制低回应，提前告知',
+    '10min内可换人、退单',
+    '病对虚，虐对虚，低恋感无恋感请提前告知',
+    '不走高擦不接hw不连语聊望谅解',
+    '截图请提前告知，禁止单内截图外传',
+    '需要上位或是下位风格可提前告知，可接双强',
   ],
 
   // 归处：图片和 index.html 放在同一个文件夹，url 是点开后去的地方
   links: [
-    { img: '1.jpg', en: 'Profile', title: '自介', text: '关于我的一切\n都写在这一页', url: 'https://www.kdocs.cn/l/cupSPyqd9ZFt' },
-    { img: '2.jpg', en: 'Lines', title: '话术', text: '我会怎样\n对你说晚安', url: 'https://www.kdocs.cn/l/cvHN1W82u6XR' },
-    { img: '3.jpg', en: 'Reviews', title: '板评', text: '那些被月光\n照过的人', url: 'https://www.kdocs.cn/l/ckhryUf127PG' },
-    { img: '4.jpg', en: 'Crown', title: '冠卡', text: '留在潮汐里的\n名字', url: 'https://www.kdocs.cn/l/cb8R9kCfyCMb' },
+    { img: '1.jpg', en: 'Profile', title: '楔子✧.资料', text: '关于我的一切\n都写在这一页', url: 'https://www.kdocs.cn/l/cg2SLJTRAGkX' },
+    { img: '2.jpg', en: 'Lines', title: '爱呓✧.话术', text: '我会怎样\n对你说晚安', url: 'https://www.kdocs.cn/l/cgGWdsjJWKZt' },
+    { img: '3.jpg', en: 'Reviews', title: '回音✧.板评', text: '那些被月光\n照过的人', url: 'https://www.kdocs.cn/l/ce1rtp7yqyvA' },
+    { img: '4.jpg', en: 'Crown', title: '碎片✧.卡类', text: '留在潮汐里的\n名字', url: 'https://www.kdocs.cn/l/ciJ4Y2dTzJQ5' },
   ],
 
   // 各节的一句文案（\n 是换行）
   copy: {
     intro: '潮水退去的时候\n月亮落进了你的掌心',
-    s1: '把我写进你的星图\n从此夜里不必迷路',
-    s2: '月有圆缺，我有四种温柔',
-    s3: '靠岸之前\n先读一读潮汐的规矩',
-    s4: '若想再见\n就顺着月光往下走',
+    s1: '我在梦里触碰到你\n而当真正见到你时 我却乱了呼吸',
+    s2: '我想成为你的梦中人\n在梦里与你缠绵 无论是美梦还是噩梦',
+    s3: '人们从诗人的字句里 选取自己心爱的意义\n但诗句的最终意义是指向你',
+    s4: '正由于我抱着与你相见的希望\n我才永远认为最崎岖的路是最好的路',
   },
   // 锁屏上的那条通知
-  lockApp: '海棠',
-  lockNote: '潮水涨上来了\n要不要来找我',
+  lockApp: '闲执',
+  lockNote: '迷恋着你的我\n不应与你缠绵吗？',
 
   ending: '愿你今夜有月亮\n也愿月亮里有我',
   endingScript: 'Good night',
