@@ -25,12 +25,14 @@
     background: var(--blue); color: var(--ink); font-family: var(--zh); font-weight: 300;
     -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
   }
-  body { overflow-x: hidden; }
+  /* 横向一律裁掉，手机上不能左右滑；body 用 clip 不用 hidden，否则月相那屏的 sticky 会失效 */
+  html { overflow-x: hidden; }
+  body { overflow-x: clip; }
   html.locked, html.locked body { overflow: hidden; height: 100%; touch-action: none; overscroll-behavior: none; }
 
   canvas.p5Canvas { position: fixed; left: 0; top: 0; z-index: 0; }
   #grain { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .06; mix-blend-mode: overlay; }
-  #fx { position: fixed; left: 0; top: 0; z-index: 2; pointer-events: none; }
+  #fx { position: fixed; left: 0; top: 0; width: 100%; z-index: 2; pointer-events: none; }
   /* 量屏幕最大高度（地址栏收起后的高度），背景画布按它画，滑动时不露边 */
   #vhp { position: fixed; left: 0; top: 0; width: 0; height: 100vh; height: 100lvh; visibility: hidden; pointer-events: none; }
   #page { position: relative; z-index: 3; text-shadow: var(--glow); }
@@ -180,7 +182,8 @@
   .rules p { font-size: 14px; line-height: 1.95; letter-spacing: .14em; text-wrap: pretty; }
   .rules p .rfw { margin-bottom: .9em; }
   .mirror .mirror-en { margin-top: 1vh; font-family: var(--en); font-style: italic; font-size: 13px; letter-spacing: .3em; text-indent: .3em; color: var(--faint); }
-  .mirror { margin: 18vh auto 16vh; text-align: center; font-size: 24px; letter-spacing: .4em; text-indent: .4em; white-space: nowrap; }
+  /* 字号跟屏宽走，窄屏也能一行放下；万一还放不下就折行，不再撑出屏幕 */
+  .mirror { margin: 18vh auto 16vh; text-align: center; font-size: min(24px, 4vw); letter-spacing: .3em; text-indent: .3em; text-wrap: balance; }
   /* 水面线：字在线上，倒影在线下 */
   .mirror .q .rfw::after { content: ""; position: absolute; left: -35%; right: -35%; top: 100%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .5), transparent); }
 
@@ -521,7 +524,7 @@ let level = 0, flowing = 0, rate = 0, acc = 0, burst = 0, quiet = 0;
 
 function setup() {
   pixelDensity(1);
-  createCanvas(windowWidth, screenH());
+  createCanvas(screenW(), screenH());
   STAR = starPath(5, 1, 0.42);
   MOON = moonPath(0.55);
   makeGrain();
@@ -529,8 +532,10 @@ function setup() {
   fxResize();
 }
 
-function reset() {
-  W = width; H = height; P = []; t = 0;
+// keep：只是屏幕变高时，正在落的星月留着接着落，开场动画不被打断
+function reset(keep) {
+  W = width; H = height;
+  if (!keep) { P = []; t = 0; }
   SPAWN = 1.8 * W / 720;
   BG = makeBackground();
   drawingContext.drawImage(BG, 0, 0);
@@ -552,9 +557,6 @@ function draw() {
   ctx.globalAlpha = 1;
   drawSea(T);
   soften();
-
-  // 有的手机浏览器（微信等）加载时报的高度偏小、之后又不发 resize，隔一会儿自己量一次
-  if (frameCount % 30 === 0) windowResized();
 
   if (flowing) {
     rate = min(1, rate + 1 / 150);
@@ -694,7 +696,6 @@ function soften() {
   }
   const g = SOFT.getContext('2d');
   g.imageSmoothingEnabled = ctx.imageSmoothingEnabled = true;
-  g.imageSmoothingQuality = ctx.imageSmoothingQuality = 'high';
   g.drawImage(ctx.canvas, 0, 0, w, h);
   ctx.drawImage(SOFT, 0, 0, w, h, 0, 0, W, H);
 }
@@ -708,14 +709,18 @@ function dot(ctx, x, y, r, a) {
 
 // 画布一开始就按地址栏收起后的最大高度画，滑动时地址栏伸缩不用重画，也不会露出没画到的边
 // 只有转屏、改窗口宽度这种真变化才重来
+// 宽度取页面布局宽度，不取 innerWidth：手机上页面被缩放时 innerWidth 会变大，画布跟着变宽又把页面撑宽
 const VHP = $('#vhp');
+function screenW() { return document.documentElement.clientWidth || innerWidth; }
 function screenH() { return Math.max(innerHeight, VHP.offsetHeight, document.documentElement.clientHeight); }
 
 function windowResized() {
   fxResize();
-  if (windowWidth === W && screenH() <= H) return;
-  resizeCanvas(windowWidth, screenH());
-  reset();
+  const w = screenW(), h = screenH();
+  if (w === W && h <= H) return;
+  const keep = w === W;
+  resizeCanvas(w, h);
+  reset(keep);
 }
 
 // ======================================================================
@@ -729,18 +734,18 @@ const mainEls = [...document.querySelectorAll('.orbit .m')];
 const subEls = [...document.querySelectorAll('.orbit .s')];
 let DPR = 1, FW = 0, FH = 0;
 
-// 前景画布的显示尺寸和像素尺寸写死成同一组数，不让浏览器拉伸，点的水纹才落在手指下
+// 前景画布：宽度 100%，高度写死成像素，和画布像素尺寸一致，不让浏览器拉伸，点的水纹才落在手指下
 function fxResize() {
-  const dpr = Math.min(devicePixelRatio || 1, 2), w = innerWidth, h = screenH();
+  const dpr = Math.min(devicePixelRatio || 1, 2), w = screenW(), h = screenH();
   if (dpr === DPR && w === FW && h <= FH) return;
   DPR = dpr; FW = w; FH = h;
   fx.width = w * DPR; fx.height = h * DPR;
-  fx.style.width = w + 'px'; fx.style.height = h + 'px';
+  fx.style.height = h + 'px';
   fctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 
 function fxFrame(T) {
-  const vw = innerWidth, vh = innerHeight;
+  const vw = screenW(), vh = innerHeight;
   fctx.clearRect(0, 0, FW, FH);
   drawConstellation(vh);
   updatePhases(T, vh, vw);
