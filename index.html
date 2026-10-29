@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="locked">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>海棠 · 棠叙</title>
+<style>
+  @font-face { font-family: "Cormorant"; src: url(fonts/CormorantGaramond-normal500.woff2) format("woff2"); font-weight: 500; font-display: swap; }
+  @font-face { font-family: "Cormorant"; src: url(fonts/CormorantGaramond-italic400.woff2) format("woff2"); font-weight: 400; font-style: italic; font-display: swap; }
+
+  :root {
+    --blue: #002FA7;
+    --ink: rgba(255, 255, 255, .92);
+    --dim: rgba(222, 231, 255, .58);
+    --faint: rgba(222, 231, 255, .34);
+    --gold: #ffe7ad;
+    --line: rgba(255, 255, 255, .22);           /* 所有分隔线：同一种 1px 细线 */
+    --zh: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", "SimSun", serif;
+    --en: "Cormorant", var(--zh);
+    --glow: 0 0 12px rgba(130, 175, 255, .35);
+    --pad: 10vw;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--blue); color: var(--ink); font-family: var(--zh); font-weight: 300;
+    -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent;
+  }
+  body { overflow-x: hidden; }
+  html.locked, html.locked body { overflow: hidden; height: 100%; touch-action: none; overscroll-behavior: none; }
+
+  canvas.p5Canvas { position: fixed; left: 0; top: 0; z-index: 0; }
+  #grain { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .06; mix-blend-mode: overlay; }
+  #fx { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+  #page { position: relative; z-index: 3; text-shadow: var(--glow); }
+  section { position: relative; }
+  .slot { position: absolute; aspect-ratio: 1; pointer-events: none; }
+
+  /* 细线图标：统一 1px 描边，不随缩放变粗 */
+  svg.ln { overflow: visible; fill: none; stroke: currentColor; stroke-width: 1; stroke-linecap: round; stroke-linejoin: round; }
+  svg.ln * { vector-effect: non-scaling-stroke; }
+
+  /* ---------- 水面倒影：每段文字正下方一份翻过来的影子，带水纹轻晃 ---------- */
+  .rfw { position: relative; display: inline-block; margin-bottom: 1em; transition: opacity 1.8s ease, transform 1.8s cubic-bezier(.2, .7, .2, 1), filter 1.8s ease; }
+  .rfw.gone { opacity: 0; transform: translateY(14px); filter: blur(4px); transition: none; }
+  .rf-r {
+    position: absolute; left: 0; top: 100%; width: 100%;
+    pointer-events: none; user-select: none; opacity: .5;
+    transform-origin: 50% 50%;
+    filter: url(#ripple) blur(.4px);
+    -webkit-mask-image: linear-gradient(to top, #000 15%, transparent 100%), repeating-linear-gradient(to bottom, #000 0 2px, rgba(0, 0, 0, .45) 2px 3.5px);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to top, #000 15%, transparent 100%), repeating-linear-gradient(to bottom, #000 0 2px, rgba(0, 0, 0, .45) 2px 3.5px);
+    mask-composite: intersect;
+    animation: ripple 4.4s ease-in-out infinite; animation-delay: var(--rd, 0s);
+  }
+  /* 压扁到七成、贴着字底 */
+  @keyframes ripple {
+    0%, 100% { transform: translateY(-14%) scaleY(-.72) skewX(0) translateX(0); }
+    30% { transform: translateY(-14%) scaleY(-.76) skewX(3deg) translateX(1.2px); }
+    70% { transform: translateY(-14%) scaleY(-.68) skewX(-3deg) translateX(-1.2px); }
+  }
+
+  .step {
+    opacity: 0; transform: translateY(16px);
+    transition: opacity 1.4s ease, transform 1.6s cubic-bezier(.2, .7, .2, 1);
+    transition-delay: calc(var(--d, 0) * .12s);
+  }
+  .step.in { opacity: 1; transform: none; }
+  .gold { color: var(--gold); }
+
+  /* ---------- 状态栏 ---------- */
+  #bar {
+    position: fixed; left: 0; right: 0; top: 0; z-index: 6;
+    height: calc(46px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 24px 0;
+    display: flex; align-items: center; justify-content: space-between;
+    font-family: var(--en); font-size: 15px; letter-spacing: .08em; color: var(--ink);
+    opacity: 0; pointer-events: none; transition: opacity 1.2s ease .4s;
+  }
+  #bar { opacity: 1 !important; pointer-events: auto !important; }
+  #bar .r { display: flex; align-items: center; gap: 9px; }
+  #island {
+    display: flex; align-items: center; gap: 9px; height: 24px; padding: 0 12px; border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, .3); background: rgba(0, 20, 90, .2); color: var(--gold); cursor: pointer;
+  }
+  #island .eq { display: flex; gap: 3px; align-items: center; height: 10px; }
+  #island .eq i { width: 1px; height: 10px; background: rgba(255, 255, 255, .85); transform: scaleY(.3); }
+  #island.playing .eq i { animation: eq 1.2s ease-in-out infinite; animation-delay: calc(var(--k) * -.35s); }
+  @keyframes eq { 0%, 100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+
+  /* ---------- 开场 ---------- */
+  #intro {
+    height: 100vh; height: 100svh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  }
+  .title > * { opacity: 0; transition: opacity 2.2s ease .8s; }
+  html.started .title > * { opacity: 1; }
+  html.started .title > :nth-child(2) { transition-delay: 1.6s; }
+  html.started .title > :nth-child(3) { transition-delay: 2.4s; }
+  html.started .title > :nth-child(n+4) { transition-delay: 3s; }
+  .title h1 { font-weight: 300; font-size: 52px; letter-spacing: .5em; text-indent: .5em; line-height: 1.2; }
+  .title .sig { display: flex; align-items: flex-start; justify-content: center; gap: 14px; margin-top: 1vh; font-size: 13px; letter-spacing: .5em; color: var(--dim); }
+  .title .sig .rfw { margin-bottom: .8em; }
+  .title .sig i { width: 28px; height: 1px; margin-top: .65em; background: var(--line); }
+  .title .sig .en { font-family: var(--en); font-style: italic; font-size: 14px; letter-spacing: .4em; text-transform: uppercase; }
+  .title .lede { margin-top: 7vh; }
+  .down {
+    position: absolute; left: 50%; bottom: calc(5vh + env(safe-area-inset-bottom));
+    width: 1px; height: 52px; background: var(--line); overflow: hidden;
+    opacity: 0; transition: opacity 1.4s ease 2.8s;
+  }
+  html.started .down { opacity: 1; }
+  .down::after { content: ""; position: absolute; left: 0; top: -40%; width: 1px; height: 40%; background: linear-gradient(transparent, #fff); animation: slide 2.4s cubic-bezier(.6, 0, .4, 1) infinite; }
+  @keyframes slide { to { top: 100%; } }
+
+  /* ---------- 小节标题：编号 —— 英文，下面是标题和一句文案 ---------- */
+  .sec { padding: 22vh var(--pad) 4vh; }
+  .head { margin-bottom: 10vh; }
+  .meta { display: flex; align-items: flex-start; gap: 14px; }
+  .meta .no { font-family: system-ui, -apple-system, "SF Pro Display", sans-serif; font-weight: 100; font-style: normal; font-size: 14px; letter-spacing: .18em; color: var(--gold); }
+  .meta .ln { flex: 1; height: 1px; margin-top: .62em; background: linear-gradient(90deg, rgba(255, 255, 255, .45), rgba(255, 255, 255, .06)); }
+  .meta .en { font-family: var(--en); font-size: 11px; letter-spacing: .42em; text-transform: uppercase; color: var(--dim); margin-top: .2em; }
+  .meta .rfw { margin-bottom: .7em; }
+  .head h2 { margin-top: 5vh; font-weight: 300; font-size: 30px; letter-spacing: .45em; line-height: 1.2; }
+  .lede { font-size: 13px; line-height: 2.3; letter-spacing: .24em; color: var(--dim); }
+  .head .lede { margin-top: .5vh; }
+
+  /* ---------- 壹 · 星图 ---------- */
+  .sky { position: relative; height: 70vh; max-width: 520px; margin: 0 auto; }
+  .cs { position: absolute; left: var(--x); top: var(--y); }
+  .cs i {
+    position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%;
+    background: #fff; box-shadow: 0 0 8px 2px rgba(200, 225, 255, .8);
+    opacity: .25; transform: scale(.6); transition: opacity .8s ease, transform .8s ease;
+  }
+  .cs.big i { left: -5.5px; top: -5.5px; width: 11px; height: 11px; background: #fff1c8; box-shadow: 0 0 14px 4px rgba(255, 220, 150, .75); }
+  .cs.on i { opacity: 1; transform: scale(1); animation: twinkle 3.6s ease-in-out infinite; animation-delay: var(--rd); }
+  @keyframes twinkle { 50% { opacity: .55; } }
+  .cs .lab { position: absolute; top: 0; white-space: nowrap; opacity: 0; transition: opacity 1.2s ease; transform: translateY(-30%); }
+  .cs.r .lab { left: 18px; }
+  .cs.l .lab { right: 18px; text-align: right; }
+  .cs.b .lab { top: 16px; left: 0; transform: translateX(-50%); text-align: center; }
+  .cs.on .lab { opacity: 1; }
+  .lab small { display: block; font-family: var(--zh); font-size: 10px; letter-spacing: .4em; color: var(--dim); }
+  .lab small em { margin-left: .6em; font-family: var(--en); font-size: 10px; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); }
+  .lab small .rfw { margin-bottom: .5em; }
+  .lab b { display: block; font-family: var(--en); font-weight: 500; font-size: 20px; letter-spacing: .14em; }
+
+  /* ---------- 贰 · 月相 ---------- */
+  #s2 { height: 100vh; height: 100svh; }
+  .stick { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+  .stick .head { position: absolute; top: calc(13vh + env(safe-area-inset-top)); left: var(--pad); right: var(--pad); margin: 0; }
+  .stick .head h2 { margin-top: 3vh; font-size: 24px; }
+  #slot-s2 { --r: min(22vw, 13vh); left: calc(50% - var(--r)); top: calc(52% - var(--r)); width: calc(var(--r) * 2); }
+  .tap { position: absolute; left: 0; right: 0; top: calc(52% + 150px); text-align: center; font-size: 10px; letter-spacing: .6em; text-indent: .6em; color: var(--faint); transition: opacity 1.2s; }
+  html.used .tap { opacity: 0; }
+  .orbit .o { position: absolute; left: 0; top: 0; white-space: nowrap; opacity: 0; letter-spacing: .3em; will-change: transform, opacity; }
+  .orbit .m { font-size: 19px; letter-spacing: .36em; }
+  .orbit .s { font-size: 13px; color: var(--dim); }
+  .orbit .o .rfw { margin-bottom: .4em; }
+  .legend { position: absolute; left: var(--pad); right: var(--pad); bottom: calc(5vh + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+  .lg { display: grid; grid-template-columns: 5.6em 1fr; gap: 12px; padding-top: 11px; border-bottom: 1px solid var(--line); }
+  .lg .k em { display: block; font-family: var(--en); font-style: italic; font-size: 10px; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); }
+  .lg .k em .rfw { margin-bottom: .4em; }
+  .lg .k span { font-size: 9px; letter-spacing: .4em; color: var(--dim); }
+  .lg .v { font-size: 11px; line-height: 1.9; letter-spacing: .12em; color: var(--dim); }
+  .lg .v .it { white-space: nowrap; }   /* 一个词不拆到两行 */
+  .lg .v .rfw { margin-bottom: .8em; }
+
+  /* ---------- 叁 · 须知 ---------- */
+  .quote { margin: 0 0 12vh; text-align: center; font-size: 19px; line-height: 2.2; letter-spacing: .4em; text-indent: .4em; }
+  .quote .rfw { margin-bottom: .6em; }
+  .rules { list-style: none; max-width: 520px; margin: 0 auto; border-bottom: 1px solid var(--line); }
+  .rules li { display: grid; grid-template-columns: 3em 1fr; padding: 20px 0 4px; border-top: 1px solid var(--line); }
+  .rules .n { font-family: var(--en); font-style: italic; font-size: 13px; color: var(--gold); padding-top: .25em; }
+  .rules p { font-size: 14px; line-height: 1.95; letter-spacing: .14em; text-wrap: pretty; }
+  .rules p .rfw { margin-bottom: .9em; }
+  .mirror .mirror-en { margin-top: 1vh; font-family: var(--en); font-style: italic; font-size: 13px; letter-spacing: .3em; text-indent: .3em; color: var(--faint); }
+  .mirror { margin: 18vh auto 16vh; text-align: center; font-size: 24px; letter-spacing: .4em; text-indent: .4em; white-space: nowrap; }
+  /* 水面线：字在线上，倒影在线下 */
+  .mirror .q .rfw::after { content: ""; position: absolute; left: -35%; right: -35%; top: 100%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .5), transparent); }
+
+  /* ---------- 肆 · 归处 ---------- */
+  .links { display: grid; grid-template-columns: 1fr 1fr; gap: 6vh 16px; max-width: 520px; margin: 0 auto; }
+  .card { display: block; color: inherit; text-decoration: none; }
+  .card .pic { display: block; position: relative; aspect-ratio: 3 / 4; padding: 5px; border: 1px solid rgba(255, 255, 255, .32); }
+  .card .pic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .card .pic svg { display: none; width: 100%; height: 100%; color: var(--gold); }
+  .card .pic.empty img { display: none; }
+  .card .pic.empty svg { display: block; }
+  .card .cm { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-family: var(--en); font-size: 10px; letter-spacing: .32em; text-transform: uppercase; color: var(--dim); }
+  .card .cm .no { font-style: italic; font-size: 12px; letter-spacing: .1em; color: var(--gold); }
+  .card .cm svg { width: 14px; height: 14px; margin-left: auto; transition: transform .4s ease, color .4s; }
+  .card:active .cm svg { transform: translate(3px, -3px); color: var(--gold); }
+  .card b { display: block; margin-top: 10px; font-weight: 300; font-size: 17px; letter-spacing: .42em; }
+  .card b .rfw { margin-bottom: .6em; }
+  .card p { font-size: 11.5px; line-height: 1.8; letter-spacing: .14em; color: var(--dim); }
+  .ending { padding: 22vh 0 22vh; text-align: center; }
+  .ending .vl { display: block; width: 1px; height: 56px; margin: 0 auto 6vh; background: linear-gradient(transparent, rgba(255, 255, 255, .5), transparent); }
+  .ending p { font-size: 13px; line-height: 2.3; letter-spacing: .5em; text-indent: .5em; color: var(--dim); }
+  .ending .en { margin-top: 3vh; font-family: var(--en); font-style: italic; font-size: 13px; letter-spacing: .5em; text-transform: uppercase; color: var(--gold); }
+
+  /* ---------- 锁屏：上划解锁后整层往上滑走，露出开场 ---------- */
+  #lock {
+    position: fixed; inset: 0; z-index: 5; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    padding-top: calc(30vh + env(safe-area-inset-top)); text-shadow: var(--glow);
+    opacity: 0; animation: lockIn 1.8s ease .9s forwards;
+    transition: transform 1.3s cubic-bezier(.6, 0, .2, 1), opacity 1s ease .15s;
+  }
+  @keyframes lockIn { to { opacity: 1; } }
+  html.started #lock { transform: translateY(-16vh); opacity: 0; animation: none; }
+  #lock .padlock { width: 15px; height: 19px; color: var(--ink); margin-bottom: 2.4vh; }
+  #lock .padlock .sh { transition: transform .5s cubic-bezier(.3, 1.4, .5, 1); }
+  html.started #lock .padlock .sh { transform: translateY(-3px); }
+  #lock .date { font-family: system-ui, -apple-system, "SF Pro Display", sans-serif; font-weight: 300; font-size: 13px; letter-spacing: .25em; text-indent: .25em; color: var(--dim); }
+  #lock .date .rfw { margin-bottom: .5em; }
+  #lock .time { font-family: system-ui, -apple-system, "SF Pro Display", sans-serif; font-weight: 200; font-size: 84px; line-height: 1; letter-spacing: -.01em; }
+  #lock .time .rfw { margin-bottom: .55em; }
+  #lock .note {
+    width: min(78vw, 320px); margin-top: 3vh; padding: 13px 16px 0; text-align: left;
+    border: 1px solid rgba(255, 255, 255, .26); border-radius: 18px; background: rgba(0, 20, 90, .2);
+  }
+  #lock .note .nh { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: .3em; color: var(--dim); }
+  #lock .note .nh svg { width: 12px; height: 12px; color: var(--gold); }
+  #lock .note .nh em { margin-left: auto; font-style: normal; font-family: var(--en); letter-spacing: .1em; }
+  #lock .note p { margin-top: 8px; font-size: 13px; line-height: 1.8; letter-spacing: .14em; }
+  #lock .note p .rfw { margin-bottom: .9em; }
+  #lock .swipe { position: absolute; left: 0; right: 0; bottom: calc(3.6vh + env(safe-area-inset-bottom)); }
+  #lock .swipe p { font-size: 11px; letter-spacing: .6em; text-indent: .6em; color: var(--dim); animation: breathe 4s ease-in-out infinite; }
+  #lock .swipe p .rfw { margin-bottom: 1.6em; }
+  #lock .swipe i { display: block; width: 128px; height: 1px; margin: 0 auto; background: rgba(255, 255, 255, .8); box-shadow: 0 0 8px rgba(180, 210, 255, .8); animation: nudge 2.6s cubic-bezier(.5, 0, .3, 1) infinite; }
+  @keyframes nudge { 0%, 60%, 100% { transform: none; } 30% { transform: translateY(-6px); } }
+
+  #hint {
+    position: fixed; left: 0; right: 0; bottom: calc(9vh + env(safe-area-inset-bottom)); z-index: 6;
+    text-align: center; pointer-events: none; text-shadow: var(--glow);
+    font-size: 12px; letter-spacing: .6em; text-indent: .6em; color: rgba(220, 230, 255, .8);
+    opacity: 0; transition: opacity 1.6s ease;
+  }
+  #hint.show { opacity: 1; animation: breathe 4s ease-in-out infinite; }
+  #hint.gone { opacity: 0 !important; animation: none; }
+  @keyframes breathe { 0%, 100% { opacity: .25; } 50% { opacity: .85; } }
+
+  @media (prefers-reduced-motion: reduce) { .rf-r { animation: none; } }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.3/lib/p5.min.js"
+        onerror="this.remove();document.write('<script src=&quot;https://cdn.bootcdn.net/ajax/libs/p5.js/1.11.3/p5.min.js&quot;><\/script>')"></script>
+</head>
+<body>
+<!-- 倒影的水纹：横向拉长的噪声，把影子推得一波一波 -->
+<svg width="0" height="0" style="position:absolute">
+  <filter id="ripple" x="-5%" y="-20%" width="110%" height="140%">
+    <feTurbulence type="turbulence" baseFrequency="0.012 0.16" numOctaves="1" seed="3" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+<div id="grain"></div>
+<canvas id="fx"></canvas>
+
+<div id="bar">
+  <span id="clock">00:00</span>
+  <button id="island" aria-label="音乐">
+    <svg class="ln" viewBox="0 0 12 12" width="11" height="11"><path d="M8 1.2a5 5 0 1 0 2.8 8A4 4 0 0 1 8 1.2z"/></svg>
+    <span class="eq"><i style="--k:0"></i><i style="--k:1"></i><i style="--k:2"></i><i style="--k:3"></i></span>
+  </button>
+  <span class="r">
+    <svg class="ln" viewBox="0 0 16 10" width="16" height="10"><path d="M1 9V7.5M5.5 9V5.5M10 9V3.5M14.5 9V1"/></svg>
+    <svg class="ln" viewBox="0 0 24 11" width="24" height="11"><rect x=".5" y=".5" width="20" height="10" rx="3"/><path d="M23 4v3"/><path d="M3.5 5.5h12" stroke="#ffe7ad"/></svg>
+  </span>
+</div>
+
+<!-- 不用 <main>：p5 会把背景画布塞进 main 里，盖住文字 -->
+<div id="page">
+  <section id="intro">
+    <div class="title">
+      <h1 class="rf"></h1>
+      <div class="sig"><span class="rf" id="alias"></span><i></i><span class="en rf" id="script"></span></div>
+      <p class="lede rf" data-copy="intro"></p>
+    </div>
+    <div class="down"></div>
+  </section>
+
+  <section id="s1" class="sec">
+    <header class="head" data-head="01|Constellation|星图|s1"></header>
+    <div class="sky"></div>
+  </section>
+
+  <section id="s2">
+    <div class="stick">
+      <header class="head" data-head="02|Phases|月相|s2"></header>
+      <div class="slot" id="slot-s2"></div>
+      <p class="tap">轻触任意文字 · 化作星月</p>
+      <div class="orbit"></div>
+      <div class="legend">
+        <div class="lg"><span class="k"><em class="rf">Main</em><span class="rf">主风格</span></span><p class="v rf" id="mainList"></p></div>
+        <div class="lg"><span class="k"><em class="rf">Sub</em><span class="rf">副风格</span></span><p class="v rf" id="subList"></p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="s3" class="sec">
+    <header class="head" data-head="03|Tides|须知|s3"></header>
+    <p class="quote step rf" id="quote1"></p>
+    <ol class="rules" id="rules1"></ol>
+    <div class="mirror step"><p class="q rf" id="quote2"></p><p class="mirror-en rf" id="quote2en"></p></div>
+    <ol class="rules" id="rules2"></ol>
+  </section>
+
+  <section id="s4" class="sec">
+    <header class="head" data-head="04|Harbor|归处|s4"></header>
+    <div class="links"></div>
+    <div class="ending"><i class="vl"></i><p class="rf" id="ending"></p><p class="en rf" id="endingScript"></p></div>
+  </section>
+</div>
+
+<div id="lock" aria-label="锁屏">
+  <svg class="ln padlock" viewBox="0 0 15 19"><path class="sh" d="M3.5 8V5.5a4 4 0 0 1 8 0V8"/><rect x=".5" y="8" width="14" height="10.5" rx="2.5"/><path d="M7.5 12v2.5"/></svg>
+  <p class="date rf" id="ldate"></p>
+  <div class="time"><span class="rfw"><span class="rf-o" id="ltime"></span><span class="rf-r" aria-hidden="true" id="ltimer"></span></span></div>
+  <div class="note">
+    <div class="nh"><svg class="ln" viewBox="0 0 12 12"><path d="M8 1.2a5 5 0 1 0 2.8 8A4 4 0 0 1 8 1.2z"/></svg><span id="lapp"></span><em>now</em></div>
+    <p class="rf" id="lnote"></p>
+  </div>
+  <div class="swipe"><p class="rf">上划解锁 · 或摇一摇</p><i></i></div>
+</div>
+<audio id="bgm" src="Brave.mp3" loop preload="auto"></audio>
+
+<script>
+// ======================================================================
+//  内容：要改文字、链接、图片，只改这里
+// ======================================================================
+const DATA = {
+  name: '海棠',
+  alias: '棠叙',
+  script: 'Haitang',
+
+  // 星图：按连线顺序排列，[小标题, 内容]
+  info: [
+    ['名字', '海棠 · 棠叙'],
+    ['年龄', '21'],
+    ['MBTI', 'ISFJ'],
+    ['星座', '金牛座'],
+    ['性取向', 'Le-H'],
+  ],
+
+  // 月相：主风格随月亮由缺到圆依次出现；副风格绕着月亮转
+  mainStyle: ['高恋', '钓系', '引导', '恶趣味'],
+  subStyle: ['安抚', '微文艺', '动物塑', '占有', '伪下', '动描微 / 高擦'],
+
+  // 须知：两句金句（\n 是换行）+ 两组条目
+  quote1: '「容纳爱人的\n所有闷闷不乐」',
+  rules1: [
+    '上线默认恋人',
+    '提前说好喜点与雷点，否则踩雷概不负责',
+    '不适请告知，称呼"小棠"我会停止',
+    '单内话术禁止模仿 / 抄袭 / 传播',
+    '不满意：半小时 5min 换人，一小时 10min',
+  ],
+  quote2: '「爱是一面镜子」',
+  quote2En: 'Love is a mirror',
+  rules2: [
+    '换过后不退不换',
+    '拒绝单内不尊重行为 / 抽象 / 不配合',
+    '过分退单默认回合制低回应，提前告知',
+  ],
+
+  // 归处：图片和 index.html 放在同一个文件夹，url 是点开后去的地方
+  links: [
+    { img: '1.jpg', en: 'Profile', title: '自介', text: '关于我的一切\n都写在这一页', url: 'https://www.kdocs.cn/l/cupSPyqd9ZFt' },
+    { img: '2.jpg', en: 'Lines', title: '话术', text: '我会怎样\n对你说晚安', url: 'https://www.kdocs.cn/l/cvHN1W82u6XR' },
+    { img: '3.jpg', en: 'Reviews', title: '板评', text: '那些被月光\n照过的人', url: 'https://www.kdocs.cn/l/ckhryUf127PG' },
+    { img: '4.jpg', en: 'Crown', title: '冠卡', text: '留在潮汐里的\n名字', url: 'https://www.kdocs.cn/l/cb8R9kCfyCMb' },
+  ],
+
+  // 各节的一句文案（\n 是换行）
+  copy: {
+    intro: '潮水退去的时候\n月亮落进了你的掌心',
+    s1: '把我写进你的星图\n从此夜里不必迷路',
+    s2: '月有圆缺，我有四种温柔',
+    s3: '靠岸之前\n先读一读潮汐的规矩',
+    s4: '若想再见\n就顺着月光往下走',
+  },
+  // 锁屏上的那条通知
+  lockApp: '海棠',
+  lockNote: '潮水涨上来了\n要不要来找我',
+
+  ending: '愿你今夜有月亮\n也愿月亮里有我',
+  endingScript: 'Good night',
+};
+
+// 星图里星星的位置（占星图区域的百分比），side 是文字在星星哪一边：r 右 / l 左 / b 下
+// 形状参照金牛座：两只角 + V 字形的脸，big 是最亮的那颗（毕宿五）
+const INFO_EN = ['Name', 'Age', 'Type', 'Sign', 'Orientation'];   // 星图小标题旁的英文
+
+const CONSTELLATION = [
+  { x: 12, y: 6, side: 'r' },
+  { x: 30, y: 30, side: 'r' },
+  { x: 46, y: 52, side: 'l', big: true },
+  { x: 58, y: 76, side: 'r' },
+  { x: 76, y: 46, side: 'b' },
+  { x: 90, y: 14 },
+];
+
+// ======================================================================
+//  渲染内容
+// ======================================================================
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const br = s => esc(s).replace(/\n/g, '<br>');
+
+const ICON = {
+  moon: '<svg class="ln" viewBox="0 0 58 58"><path d="M33 17a13 13 0 1 0 9.5 21.5A10.5 10.5 0 0 1 33 17z"/></svg>',
+  arrow: '<svg class="ln" viewBox="0 0 18 18"><path d="M4.5 13.5l9-9M7 4.5h6.5V11"/></svg>',
+};
+
+$('.title h1').textContent = DATA.name;
+$('#alias').textContent = DATA.alias;
+$('#script').textContent = DATA.script;
+
+document.querySelectorAll('[data-head]').forEach(el => {
+  const [no, en, zh, copy] = el.dataset.head.split('|');
+  el.innerHTML = `
+    <div class="meta"><span class="no rf">${no}</span><i class="ln"></i><span class="en rf">${en}</span></div>
+    <h2 class="rf">${zh}</h2>
+    ${copy ? `<p class="lede rf" data-copy="${copy}"></p>` : ''}`;
+});
+document.querySelectorAll('.meta i.ln').forEach(i => { i.className = 'ln'; });
+
+$('.sky').innerHTML = CONSTELLATION.map((p, i) => {
+  const info = DATA.info[i];
+  const lab = info ? `<div class="lab"><small class="rf">${esc(info[0])}<em>${INFO_EN[i] || ''}</em></small><b class="rf">${esc(info[1])}</b></div>` : '';
+  return `<div class="cs ${p.side || ''} ${p.big ? 'big' : ''}" style="--x:${p.x}%;--y:${p.y}%;--rd:${i * .6}s"><i></i>${lab}</div>`;
+}).join('');
+
+$('.orbit').innerHTML = DATA.mainStyle.map(w => `<span class="o m rf">${esc(w)}</span>`).join('')
+  + DATA.subStyle.map(w => `<span class="o s rf">${esc(w)}</span>`).join('');
+
+$('#quote1').innerHTML = br(DATA.quote1);
+$('#quote2').innerHTML = br(DATA.quote2);
+$('#quote2en').textContent = DATA.quote2En;
+const items = a => a.map(w => `<span class="it">${esc(w)}</span>`).join(' · ');
+$('#mainList').innerHTML = items(DATA.mainStyle);
+$('#subList').innerHTML = items(DATA.subStyle);
+const rule = (t, n, i) => `<li class="step" style="--d:${i % 3}"><span class="n">${String(n).padStart(2, '0')}</span><p class="rf">${esc(t)}</p></li>`;
+$('#rules1').innerHTML = DATA.rules1.map((t, i) => rule(t, i + 1, i)).join('');
+$('#rules2').innerHTML = DATA.rules2.map((t, i) => rule(t, DATA.rules1.length + i + 1, i)).join('');
+
+$('.links').innerHTML = DATA.links.map((l, i) => `
+  <a class="card step" style="--d:${i % 2}" href="${esc(l.url)}" target="_blank" rel="noopener">
+    <span class="pic"><img src="${esc(l.img)}" alt="${esc(l.title)}" loading="lazy" onerror="this.parentNode.classList.add('empty')">${ICON.moon}</span>
+    <span class="cm"><span class="no">${String(i + 1).padStart(2, '0')}</span>${esc(l.en)}${ICON.arrow}</span>
+    <b class="rf">${esc(l.title)}</b>
+    <p class="rf">${br(l.text)}</p>
+  </a>`).join('');
+$('#ending').innerHTML = br(DATA.ending);
+$('#lapp').textContent = DATA.lockApp;
+$('#lnote').innerHTML = br(DATA.lockNote);
+{ const d = new Date(); $('#ldate').textContent = `${d.getMonth() + 1}月${d.getDate()}日 星期${'日一二三四五六'[d.getDay()]}`; }
+$('#endingScript').textContent = DATA.endingScript;
+document.querySelectorAll('[data-copy]').forEach(el => el.innerHTML = br(DATA.copy[el.dataset.copy] || ''));
+
+// 给每段文字配一份水面倒影
+document.querySelectorAll('.rf').forEach((el, i) => {
+  const h = el.innerHTML;
+  el.innerHTML = `<span class="rfw"><span class="rf-o">${h}</span><span class="rf-r" aria-hidden="true" style="--rd:${-(i * 0.73) % 4.4}s">${h}</span></span>`;
+});
+
+const io = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+}), { threshold: 0.25 });
+document.querySelectorAll('.step').forEach(el => io.observe(el));
+
+const clock = $('#clock');
+const tick = () => {
+  const d = new Date(), hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  clock.textContent = $('#ltime').textContent = $('#ltimer').textContent = hm;
+};
+tick(); setInterval(tick, 10000);
+
+// ======================================================================
+//  背景：倒挂的海 + 星月阶梯垂落（p5），和「星月垂落」同一套
+// ======================================================================
+const COLORS = {
+  star: ['#ffffff', '#ffffff', '#fff4d6', '#ffe39a', '#ffd3e6', '#cfe0ff', '#9fbcff'],
+  moon: ['#fff0c0', '#ffe08f', '#fff7e2'],
+};
+const MOON_RATE = 0.12;
+const SEA_DEPTH = 0.24;     // 海面占屏高比例
+const SEA_AFTER = 0.86;     // 开始掉落后海面退到原来的比例
+const QUIET = { spawn: 0.5, dim: 0.45 };   // 滑到内容区后：星月少一半、暗 45%
+
+const LAYERS = [
+  { at: 0.40, color: '#14265e', amp: 9,  k1: 0.016, k2: 0.041, sp: 0.35, foam: 0.3 },
+  { at: 0.62, color: '#1f3f86', amp: 12, k1: 0.019, k2: 0.037, sp: -0.45, foam: 0.5 },
+  { at: 0.83, color: '#3463ad', amp: 15, k1: 0.014, k2: 0.044, sp: 0.55, foam: 0.7 },
+  { at: 1.00, color: '#5a8ed2', amp: 20, k1: 0.017, k2: 0.035, sp: -0.65, foam: 1 },
+];
+
+let W, H, P, t, SPAWN, STAR, MOON, BG;
+let SEA = [];
+let level = 0, flowing = 0, rate = 0, acc = 0, burst = 0, quiet = 0;
+
+function setup() {
+  pixelDensity(1);
+  createCanvas(windowWidth, windowHeight);
+  STAR = starPath(5, 1, 0.42);
+  MOON = moonPath(0.55);
+  makeGrain();
+  reset();
+  fxResize();
+}
+
+function reset() {
+  W = width; H = height; P = []; t = 0;
+  SPAWN = 1.8 * W / 720;
+  BG = makeBackground();
+  drawingContext.drawImage(BG, 0, 0);
+}
+
+function draw() {
+  const ctx = drawingContext;
+  const T = millis() / 1000;
+
+  // 往下滑时海慢慢收回屏幕顶上，给内容让位置
+  const target = flowing ? SEA_AFTER * (1 - sstep(0, 0.7, scrollY / H)) : 1;
+  level += (target * ease(min(1, T / 2.6)) - level) * 0.06;
+
+  // 进入内容区后背景变安静：星月变少、变暗，拖尾变短，不和字抢
+  quiet += (sstep(0.3, 1, scrollY / H) - quiet) * 0.05;
+
+  ctx.globalAlpha = (11 + 13 * quiet) / 255;
+  ctx.drawImage(BG, 0, 0);
+  ctx.globalAlpha = 1;
+  drawSea(T);
+  filter(BLUR);
+
+  if (flowing) {
+    rate = min(1, rate + 1 / 150);
+    for (acc += SPAWN * rate * (1 - QUIET.spawn * quiet); acc >= 1; acc--) spawn(random(-10, W + 10), T);
+    if (burst > 0 && frameCount % 2 === 0) { spawn(random(W), T); burst--; }
+  }
+
+  for (const p of P) {
+    if (!p || p.y > H + 20) continue;
+    p.s *= 0.997;
+    // 停不停只看高度：同一高度的星月一起停顿，台阶横贯整屏
+    const N = noise(p.x / W * 0.08, p.y / 9, t / W);
+    if (N > 0.4) {            // 直落，越落越快
+      p.y += p.g += 0.5;
+    } else {                  // 横向滑一步，慢慢往下渗；方向各自决定，不挤成一股
+      p.x += noise(p.o, p.y / 30) > 0.5 ? 1 : -1;
+      p.g = 0;
+      p.y += 0.5;
+    }
+    p.r += p.vr;
+    const c = Math.cos(p.r) * p.s, s = Math.sin(p.r) * p.s;
+    ctx.setTransform(c, s, -s, c, p.x, p.y);
+    ctx.globalAlpha = p.a * (p.keep ? 1 : 1 - QUIET.dim * quiet);
+    ctx.fillStyle = p.c;
+    ctx.fill(p.moon ? MOON : STAR);
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  drawFoam(T);
+
+  fxFrame(T);
+}
+
+function spawn(x, T) {
+  const moon = random() < MOON_RATE;
+  P[t % (W * 9)] = {
+    x, y: level < 0.05 ? random(-12, -4) : waveY(LAYERS.length - 1, x, T) + random(-2, 6),
+    g: 0, o: random(100),
+    s: moon ? random(6.5, 11) : random(3.5, 9) * (random() < 0.15 ? 1.4 : 1),
+    r: random(TWO_PI), vr: random(-0.04, 0.04),
+    a: random(0.55, 1),
+    moon, c: random(moon ? COLORS.moon : COLORS.star),
+  };
+  t++;
+}
+
+// ---------- 倒挂的海 ----------
+
+// 浪形：浪尖尖、浪谷宽（倒挂，浪尖朝下）；返回 0~1 的浪尖程度
+function crestAt(i, x, T) {
+  const L = LAYERS[i];
+  const c1 = Math.pow((1 + Math.sin(x * L.k1 + T * L.sp + i * 1.9)) / 2, 3);
+  const c2 = Math.pow((1 + Math.sin(x * L.k2 - T * L.sp * 1.6 + i * 0.7)) / 2, 2);
+  return c1 * 0.75 + c2 * 0.25;
+}
+
+function waveY(i, x, T, crest = crestAt(i, x, T)) {
+  const L = LAYERS[i];
+  return H * SEA_DEPTH * level * L.at
+    + L.amp * (2.2 * crest - 0.8)
+    + L.amp * 0.9 * (noise(x * 0.005 + i * 10, T * 0.12) - 0.5);
+}
+
+// 浪身画在模糊之前，边缘柔和
+function drawSea(T) {
+  SEA = [];
+  if (level < 0.01) return;
+  const ctx = drawingContext;
+  const step = 5;
+
+  // 从近到远画：近层填到最低，远层叠在上面，露出一条条浪
+  for (let i = LAYERS.length; i--;) {
+    const L = LAYERS[i];
+    const cs = [], ys = [];
+    for (let x = -step; x <= W + step; x += step) {
+      const c = crestAt(i, x, T);
+      cs.push(c); ys.push(waveY(i, x, T, c));
+    }
+    SEA[i] = { cs, ys, step };
+
+    ctx.fillStyle = L.color;
+    ctx.beginPath();
+    ctx.moveTo(-step, -10);
+    ys.forEach((y, j) => ctx.lineTo(j * step - step, y));
+    ctx.lineTo(W + step, -10);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// 白浪画在模糊之后、星月之上，像星月一样清晰，下一帧再晕出柔光
+function drawFoam(T) {
+  const ctx = drawingContext;
+  ctx.fillStyle = '#ffffff';
+  for (let i = LAYERS.length; i--;) {
+    if (!SEA[i]) continue;
+    const L = LAYERS[i], { cs, ys, step } = SEA[i], f = L.foam;
+    ys.forEach((y, j) => {
+      const x = j * step - step;
+      const n = (o, sp = 0.3) => noise(j * 0.61 + o * 7.3 + i * 31, T * sp + o);
+
+      // 浪沿一层薄沫，断断续续
+      if (n(0, 0.6) > 0.35) dot(ctx, x, y - 1, 0.8 + 1.4 * f * n(0), 0.3 + 0.5 * f);
+
+      const k = Math.max(0, (cs[j] - 0.35) / 0.65);
+      if (k <= 0) return;
+      // 浪尖翻起的泡沫团
+      for (let b = 0, m = 1 + Math.round(k * 5 * f); b < m; b++) {
+        const nb = n(b + 1);
+        dot(ctx, x + (nb - 0.5) * step * 2.4, y - 3 + nb * 6 * k,
+            1 + (1.5 + 4.5 * nb) * f * k, (0.5 + 0.45 * f) * (1 - b / (m + 1)));
+      }
+      // 泡沫沿浪面往上散成蕾丝
+      for (let b = 0, m = Math.round(k * 7 * f); b < m; b++) {
+        const nb = n(b + 9, 0.5);
+        dot(ctx, x + (nb - 0.5) * step * 3, y - 5 - Math.pow(nb, 1.3) * 40 * f * k,
+            0.6 + 1.3 * nb, 0.2 + 0.35 * f * (1 - nb));
+      }
+      // 浪尖下溅出的水花
+      if (k > 0.5 && n(20, 0.9) > 0.6) {
+        const nb = n(21, 1.2);
+        dot(ctx, x + (nb - 0.5) * step * 4, y + 6 + nb * 16 * f, 0.8 + nb * 1.4, 0.8 * f);
+      }
+    });
+  }
+  ctx.globalAlpha = 1;
+}
+
+function dot(ctx, x, y, r, a) {
+  ctx.globalAlpha = a;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function windowResized() {
+  fxResize();
+  // 手机滑动时地址栏伸缩只改一点高度，不重来
+  // 但窗口变高了必须跟着变高，否则底部会露出一条没画到的色带
+  if (windowWidth === W && windowHeight <= H && H - windowHeight < 160) return;
+  resizeCanvas(windowWidth, windowHeight);
+  reset();
+}
+
+// ======================================================================
+//  前景：星图连线 + 月相屏的主副风格
+// ======================================================================
+const fx = $('#fx'), fctx = fx.getContext('2d');
+const S2 = $('#s2');
+const SLOT = { s2: $('#slot-s2') };
+const csEls = [...document.querySelectorAll('.cs')];
+const mainEls = [...document.querySelectorAll('.orbit .m')];
+const subEls = [...document.querySelectorAll('.orbit .s')];
+let DPR = 1;
+
+function fxResize() {
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  fx.width = innerWidth * DPR; fx.height = innerHeight * DPR;
+  fctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+function fxFrame(T) {
+  const vw = innerWidth, vh = innerHeight;
+  fctx.clearRect(0, 0, vw, vh);
+  drawConstellation(vh);
+  updatePhases(T, vh, vw);
+  drawRings();
+}
+
+function stickPos(slot) {
+  return { x: slot.offsetLeft + slot.offsetWidth / 2, y: slot.offsetTop + slot.offsetHeight / 2, r: slot.offsetWidth / 2 };
+}
+
+// ---------- 壹 · 星图：星星沿金牛座依次点亮、细线连起来 ----------
+
+function drawConstellation(vh) {
+  const box = $('.sky').getBoundingClientRect();
+  if (box.bottom < 0 || box.top > vh) return;
+  const prog = clamp((vh * 0.82 - box.top) / (box.height * 0.8)) * (csEls.length - 1);
+  const pts = csEls.map(el => {
+    const b = el.firstChild.getBoundingClientRect();
+    return [b.left + b.width / 2, b.top + b.height / 2];
+  });
+  csEls.forEach((el, i) => el.classList.toggle('on', prog >= i - 0.05));
+
+  const g = fctx;
+  g.save();
+  g.lineWidth = 0.8;
+  g.strokeStyle = 'rgba(220, 235, 255, .55)';
+  g.shadowColor = 'rgba(150, 200, 255, .9)';
+  g.shadowBlur = 8;
+  g.beginPath();
+  for (let i = 0; i < pts.length - 1; i++) {
+    const f = clamp(prog - i);
+    if (f <= 0) break;
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+    g.moveTo(ax, ay);
+    g.lineTo(lerp(ax, bx, f), lerp(ay, by, f));
+  }
+  g.stroke();
+  g.restore();
+}
+
+// ---------- 贰 · 月相：下滑时主风格依次浮现，副风格绕着它转 ----------
+
+function updatePhases(T, vh, vw) {
+  const box = S2.getBoundingClientRect();
+  if (box.bottom < 0 || box.top > vh) return;
+  const c = stickPos(SLOT.s2);
+  const R = Math.min(vw * 0.44, 240);
+  const spin = T * 0.22;                               // 只随时间转，和页面下滑无关
+  const turn = (Math.sin(T * 0.7) + 1) / 2;            // 1 主风格亮，0 副风格亮，轮流
+
+  // 两条扁扁的轨道，斜着交叉成一个很平的 X（不画线，只靠字的走位看出来）
+  const place = (els, rx, ry, tl, dir, lit) => els.forEach((el, i) => {
+    const th = i / els.length * Math.PI * 2 + spin * dir;
+    const ox = Math.cos(th) * rx, oy = Math.sin(th) * ry;
+    const x = c.x + ox * Math.cos(tl) - oy * Math.sin(tl);
+    const y = c.y + ox * Math.sin(tl) + oy * Math.cos(tl);
+    const d = (Math.sin(th) + 1) / 2;                  // 0 在后面，1 在前面
+    const half = el.offsetWidth / 2 + 6;
+    // 绕到背面就隐去，转回前面再出现
+    el.style.opacity = sstep(-0.1, 0.35, Math.sin(th)) * (0.3 + 0.7 * lit);
+    el.style.zIndex = Math.round(d * 10);
+    el.style.transform = `translate(${Math.min(vw - half, Math.max(half, x))}px, ${y}px) translate(-50%, -50%) scale(${0.8 + 0.3 * d})`;
+  });
+  place(mainEls, R, R * 0.2, -0.32, 1, turn);              // 主风格：大圈，往右上斜，顺时针
+  place(subEls, R * 0.8, R * 0.12, 0.2, -1, 1 - turn);     // 副风格：小一圈、更扁，往右下斜，逆时针
+}
+
+// ======================================================================
+//  交互：上划 / 摇一摇开场，音乐
+// ======================================================================
+const bgm = $('#bgm'), island = $('#island');
+let userPaused = false;
+
+function start() {
+  if (flowing) return;
+  flowing = 1;
+  burst = Math.round(W * 0.12);
+  document.documentElement.classList.remove('locked');
+  document.documentElement.classList.add('started');
+  scrollTo(0, 0);
+  playMusic();
+}
+
+function playMusic() {
+  if (userPaused || !bgm.paused) return;
+  bgm.volume = 0;
+  bgm.play().then(() => {
+    island.classList.add('playing');
+    let v = 0;
+    const id = setInterval(() => { v = Math.min(0.8, v + 0.04); bgm.volume = v; if (v >= 0.8) clearInterval(id); }, 80);
+  }).catch(() => {});
+}
+
+island.addEventListener('click', () => {
+  if (bgm.paused) { userPaused = false; playMusic(); }
+  else { userPaused = true; bgm.pause(); island.classList.remove('playing'); }
+});
+
+let downY = null, downT = 0, motionAsked = false;
+let downX = 0;
+addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+addEventListener('pointerup', e => {
+  askMotion();
+  if (e.target.closest('#island')) return;
+  if (!flowing && downY !== null && downY - e.clientY > 50 && performance.now() - downT < 900) start();
+  else if (flowing) {
+    playMusic();     // 摇一摇开场时浏览器不让自动放音乐，等下一次触摸再放
+    // 手指没怎么移动、按得不久，才算"点"，滑动页面不触发
+    if (downY !== null && Math.hypot(e.clientX - downX, e.clientY - downY) < 10 && performance.now() - downT < 500) tapAt(e.clientX, e.clientY, e.target);
+  }
+  downY = null;
+});
+addEventListener('wheel', e => !flowing && e.deltaY > 30 && start());
+addEventListener('keydown', e => !flowing && [' ', 'ArrowUp', 'ArrowDown'].includes(e.key) && start());
+
+// ---------- 文字交互：碰到哪段字，哪段字就化成星月落下 ----------
+
+let rings = [];
+function tapAt(x, y, target) {
+  rings.push({ x, y, t: performance.now() });
+  if (target.closest('a, button')) return;          // 链接照常打开
+  const rw = target.closest('.rfw');
+  if (rw) dissolve(rw);
+}
+
+// 点的位置泛开两圈压扁的细线水纹
+function drawRings() {
+  const now = performance.now(), g = fctx;
+  g.strokeStyle = '#fff';
+  g.lineWidth = 1;
+  rings = rings.filter(r => {
+    const u = (now - r.t) / 1500;
+    if (u >= 1) return false;
+    for (const k of [0, 0.2]) {
+      const v = (u - k) / (1 - k);
+      if (v <= 0) continue;
+      const R = 6 + (1 - Math.pow(1 - v, 3)) * 58;
+      g.globalAlpha = (1 - v) * 0.55;
+      g.beginPath();
+      g.ellipse(r.x, r.y, R, R * 0.32, 0, 0, Math.PI * 2);
+      g.stroke();
+    }
+    return true;
+  });
+  g.globalAlpha = 1;
+}
+
+// 把这段字逐字画到一张小画布上，按字形采样成星星和弯月，放进背景的阶梯水帘里；
+// 字先隐去，3.2 秒后从倒影的位置浮回来
+function dissolve(rw) {
+  if (rw.classList.contains('gone')) return;
+  const src = rw.querySelector('.rf-o');
+  const box = src.getBoundingClientRect();
+  if (box.width < 2 || box.bottom < 0 || box.top > innerHeight) return;
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(box.width) + 8; c.height = Math.ceil(box.height) + 8;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff';
+  g.textBaseline = 'middle';
+  const rg = document.createRange(), walk = document.createTreeWalker(src, NodeFilter.SHOW_TEXT);
+  let fs = 14;
+  for (let n; (n = walk.nextNode());) {
+    const cs = getComputedStyle(n.parentElement);
+    g.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    fs = parseFloat(cs.fontSize);
+    for (let i = 0; i < n.length; i++) {
+      if (!n.data[i].trim()) continue;
+      rg.setStart(n, i); rg.setEnd(n, i + 1);
+      const r = rg.getBoundingClientRect();
+      if (r.width) g.fillText(n.data[i], r.left - box.left + 4, r.top - box.top + r.height / 2 + 4);
+    }
+  }
+  // 采样间距随字号走：大字小字每个字都碎成差不多二三十颗
+  const d = g.getImageData(0, 0, c.width, c.height).data, step = Math.max(1.5, fs / 9);
+  const pts = [];
+  for (let y = 0; y < c.height; y += step)
+    for (let x = 0; x < c.width; x += step)
+      if (d[(Math.floor(y) * c.width + Math.floor(x)) * 4 + 3] > 90) pts.push(x, y);
+  const keep = Math.min(1, 1800 / pts.length);   // 很长的一段也不超过约 900 颗
+  for (let i = 0; i < pts.length; i += 2)
+    if (Math.random() < keep * 0.9) spawnAt(box.left + pts[i] - 4, box.top + pts[i + 1] - 4, fs);
+
+  rw.classList.add('gone');
+  document.documentElement.classList.add('used');
+  setTimeout(() => rw.classList.remove('gone'), 3200);
+}
+
+function spawnAt(x, y, fs) {
+  const moon = random() < 0.18;
+  const s = constrain(fs * random(0.08, 0.2), 1.4, 7) * (moon ? 1.5 : 1);
+  P[t % (W * 9)] = {
+    x: x + random(-1, 1), y, g: random(-1.6, 0), o: random(100), keep: 1,
+    s, r: random(TWO_PI), vr: random(-0.06, 0.06),
+    a: random(0.8, 1),
+    moon, c: random(moon ? COLORS.moon : COLORS.star),
+  };
+  t++;
+}
+
+// iOS 需在用户手势里申请动作传感器权限
+function askMotion() {
+  if (motionAsked) return;
+  motionAsked = true;
+  if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) {
+    DeviceMotionEvent.requestPermission().catch(() => {});
+  }
+}
+let lastAcc = null;
+addEventListener('devicemotion', e => {
+  const a = e.accelerationIncludingGravity;
+  if (!a || a.x === null) return;
+  if (lastAcc) {
+    const d = Math.abs(a.x - lastAcc.x) + Math.abs(a.y - lastAcc.y) + Math.abs(a.z - lastAcc.z);
+    if (d > 28) start();
+  }
+  lastAcc = { x: a.x, y: a.y, z: a.z };
+});
+
+// ======================================================================
+//  素材与工具（注意别和 p5 自带的函数重名，比如 smooth）
+// ======================================================================
+function makeBackground() {
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#002FA7';
+  g.fillRect(0, 0, W, H);
+  const rad = g.createRadialGradient(W * 0.5, H * 0.95, 0, W * 0.5, H * 0.95, H * 0.7);
+  rad.addColorStop(0, 'rgba(110, 70, 160, .35)');
+  rad.addColorStop(1, 'rgba(110, 70, 160, 0)');
+  g.fillStyle = rad;
+  g.fillRect(0, 0, W, H);
+  return c;
+}
+
+function makeGrain() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 160;
+  const g = c.getContext('2d'), img = g.createImageData(160, 160);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const v = Math.random() * 255;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+    img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  $('#grain').style.background = `url(${c.toDataURL()})`;
+}
+
+// 单位尺寸的五角星
+function starPath(n, outer, inner) {
+  const path = new Path2D();
+  for (let i = 0; i < n * 2; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / n, r = i % 2 ? inner : outer;
+    path[i ? 'lineTo' : 'moveTo'](r * Math.cos(a), r * Math.sin(a));
+  }
+  path.closePath();
+  return path;
+}
+
+// 单位圆减去右移 d 的同径圆，得到开口朝右的弯月
+function moonPath(d) {
+  const path = new Path2D();
+  const a = Math.atan2(Math.sqrt(1 - d * d / 4), d / 2);
+  path.arc(0, 0, 1, a, 2 * Math.PI - a);
+  path.arc(d, 0, 1, Math.PI + a, Math.PI - a, true);
+  path.closePath();
+  return path;
+}
+
+function ease(x) { return 1 - Math.pow(1 - x, 3); }
+function clamp(x) { return Math.max(0, Math.min(1, x)); }
+function sstep(a, b, x) { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); }
+</script>
+</body>
+</html>
