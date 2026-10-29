@@ -56,7 +56,10 @@
     mask-image: linear-gradient(to top, #000 15%, transparent 100%), repeating-linear-gradient(to bottom, #000 0 2px, rgba(0, 0, 0, .45) 2px 3.5px);
     mask-composite: intersect;
     animation: ripple 4.4s ease-in-out infinite; animation-delay: var(--rd, 0s);
+    animation-play-state: paused;
   }
+  /* 只有在屏幕里的倒影才晃：全页八十多个一起晃，每帧都要重画，手机滑动会卡 */
+  .rfw.vis > .rf-r { animation-play-state: running; }
   /* 压扁到七成、贴着字底 */
   @keyframes ripple {
     0%, 100% { transform: translateY(-14%) scaleY(-.72) skewX(0) translateX(0); }
@@ -486,6 +489,9 @@ document.querySelectorAll('.rf').forEach((el, i) => {
   const h = el.innerHTML;
   el.innerHTML = `<span class="rfw"><span class="rf-o">${h}</span><span class="rf-r" aria-hidden="true" style="--rd:${-(i * 0.73) % 4.4}s">${h}</span></span>`;
 });
+
+const rio = new IntersectionObserver(es => es.forEach(e => e.target.classList.toggle('vis', e.isIntersecting)), { rootMargin: '10% 0px' });
+document.querySelectorAll('.rfw').forEach(el => rio.observe(el));
 
 const io = new IntersectionObserver(es => es.forEach(e => {
   if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
