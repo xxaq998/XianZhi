@@ -30,7 +30,9 @@
 
   canvas.p5Canvas { position: fixed; left: 0; top: 0; z-index: 0; }
   #grain { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .06; mix-blend-mode: overlay; }
-  #fx { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+  #fx { position: fixed; left: 0; top: 0; z-index: 2; pointer-events: none; }
+  /* 量屏幕最大高度（地址栏收起后的高度），背景画布按它画，滑动时不露边 */
+  #vhp { position: fixed; left: 0; top: 0; width: 0; height: 100vh; height: 100lvh; visibility: hidden; pointer-events: none; }
   #page { position: relative; z-index: 3; text-shadow: var(--glow); }
   section { position: relative; }
   .slot { position: absolute; aspect-ratio: 1; pointer-events: none; }
@@ -126,6 +128,9 @@
 
   /* ---------- 壹 · 星图 ---------- */
   .sky { position: relative; height: 70vh; max-width: 520px; margin: 0 auto; }
+  /* 连线和星星在同一个盒子里，跟着页面一起滚，手机上滑动不会错位 */
+  .sky svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; filter: drop-shadow(0 0 4px rgba(150, 200, 255, .9)); }
+  .sky line { stroke: rgba(220, 235, 255, .55); stroke-width: .8; stroke-linecap: round; vector-effect: non-scaling-stroke; }
   .cs { position: absolute; left: var(--x); top: var(--y); }
   .cs i {
     position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%;
@@ -254,6 +259,7 @@
     <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G"/>
   </filter>
 </svg>
+<div id="vhp"></div>
 <div id="grain"></div>
 <canvas id="fx"></canvas>
 
@@ -390,17 +396,27 @@ const DATA = {
   endingScript: 'Good night',
 };
 
-// 星图里星星的位置（占星图区域的百分比），side 是文字在星星哪一边：r 右 / l 左 / b 下
-// 形状参照金牛座：两只角 + V 字形的脸，big 是最亮的那颗（毕宿五）
+// 星图里星星的位置（占星图区域的百分比），按点亮顺序排列
+// info 是挂第几条资料，side 是文字在星星哪一边：r 右 / l 左 / b 下
+// from 是从哪颗星连过来（不写就连上一颗）
+// 形状参照天蝎座：右上三颗星是蝎钳，往下是身子，尾巴在底下卷起来，big 是最亮的心宿二
 const INFO_EN = ['Name', 'Age', 'Type', 'Sign', 'Orientation'];   // 星图小标题旁的英文
 
 const CONSTELLATION = [
-  { x: 12, y: 6, side: 'r' },
-  { x: 30, y: 30, side: 'r' },
-  { x: 46, y: 52, side: 'l', big: true },
-  { x: 58, y: 76, side: 'r' },
-  { x: 76, y: 46, side: 'b' },
-  { x: 90, y: 14 },
+  { x: 84, y: 4, info: 0, side: 'l' },     // β 房宿四
+  { x: 80, y: 14 },                        // δ 房宿三
+  { x: 77, y: 25 },                        // π 房宿一
+  { x: 65, y: 22, from: 1 },               // σ 心宿一
+  { x: 55, y: 32, info: 1, side: 'l', big: true },   // α 心宿二
+  { x: 47, y: 42 },                        // τ 心宿三
+  { x: 41, y: 54, info: 2, side: 'r' },    // ε 尾宿二
+  { x: 37, y: 66, info: 3, side: 'r' },    // μ 尾宿一
+  { x: 35, y: 78 },                        // ζ 尾宿三
+  { x: 41, y: 88 },                        // η 尾宿四
+  { x: 52, y: 95, info: 4, side: 'b' },    // θ 尾宿五
+  { x: 64, y: 92 },                        // ι 尾宿七
+  { x: 71, y: 84 },                        // κ 尾宿八
+  { x: 63, y: 78 },                        // λ 尾宿九（蝎尾针）
 ];
 
 // ======================================================================
@@ -428,11 +444,12 @@ document.querySelectorAll('[data-head]').forEach(el => {
 });
 document.querySelectorAll('.meta i.ln').forEach(i => { i.className = 'ln'; });
 
-$('.sky').innerHTML = CONSTELLATION.map((p, i) => {
-  const info = DATA.info[i];
-  const lab = info ? `<div class="lab"><small class="rf">${esc(info[0])}<em>${INFO_EN[i] || ''}</em></small><b class="rf">${esc(info[1])}</b></div>` : '';
-  return `<div class="cs ${p.side || ''} ${p.big ? 'big' : ''}" style="--x:${p.x}%;--y:${p.y}%;--rd:${i * .6}s"><i></i>${lab}</div>`;
-}).join('');
+$('.sky').innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none">${CONSTELLATION.slice(1).map(() => '<line/>').join('')}</svg>`
+  + CONSTELLATION.map((p, i) => {
+    const info = DATA.info[p.info];
+    const lab = info ? `<div class="lab"><small class="rf">${esc(info[0])}<em>${INFO_EN[p.info] || ''}</em></small><b class="rf">${esc(info[1])}</b></div>` : '';
+    return `<div class="cs ${p.side || ''} ${p.big ? 'big' : ''}" style="--x:${p.x}%;--y:${p.y}%;--rd:${i * .6}s"><i></i>${lab}</div>`;
+  }).join('');
 
 $('.orbit').innerHTML = DATA.mainStyle.map(w => `<span class="o m rf">${esc(w)}</span>`).join('')
   + DATA.subStyle.map(w => `<span class="o s rf">${esc(w)}</span>`).join('');
@@ -504,7 +521,7 @@ let level = 0, flowing = 0, rate = 0, acc = 0, burst = 0, quiet = 0;
 
 function setup() {
   pixelDensity(1);
-  createCanvas(windowWidth, windowHeight);
+  createCanvas(windowWidth, screenH());
   STAR = starPath(5, 1, 0.42);
   MOON = moonPath(0.55);
   makeGrain();
@@ -670,12 +687,15 @@ function dot(ctx, x, y, r, a) {
   ctx.fill();
 }
 
+// 画布一开始就按地址栏收起后的最大高度画，滑动时地址栏伸缩不用重画，也不会露出没画到的边
+// 只有转屏、改窗口宽度这种真变化才重来
+const VHP = $('#vhp');
+function screenH() { return Math.max(innerHeight, VHP.offsetHeight, document.documentElement.clientHeight); }
+
 function windowResized() {
   fxResize();
-  // 手机滑动时地址栏伸缩只改一点高度，不重来
-  // 但窗口变高了必须跟着变高，否则底部会露出一条没画到的色带
-  if (windowWidth === W && windowHeight <= H && H - windowHeight < 160) return;
-  resizeCanvas(windowWidth, windowHeight);
+  if (windowWidth === W && screenH() <= H) return;
+  resizeCanvas(windowWidth, screenH());
   reset();
 }
 
@@ -688,17 +708,21 @@ const SLOT = { s2: $('#slot-s2') };
 const csEls = [...document.querySelectorAll('.cs')];
 const mainEls = [...document.querySelectorAll('.orbit .m')];
 const subEls = [...document.querySelectorAll('.orbit .s')];
-let DPR = 1;
+let DPR = 1, FW = 0, FH = 0;
 
+// 前景画布的显示尺寸和像素尺寸写死成同一组数，不让浏览器拉伸，点的水纹才落在手指下
 function fxResize() {
-  DPR = Math.min(devicePixelRatio || 1, 2);
-  fx.width = innerWidth * DPR; fx.height = innerHeight * DPR;
+  const dpr = Math.min(devicePixelRatio || 1, 2), w = innerWidth, h = screenH();
+  if (dpr === DPR && w === FW && h <= FH) return;
+  DPR = dpr; FW = w; FH = h;
+  fx.width = w * DPR; fx.height = h * DPR;
+  fx.style.width = w + 'px'; fx.style.height = h + 'px';
   fctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 
 function fxFrame(T) {
   const vw = innerWidth, vh = innerHeight;
-  fctx.clearRect(0, 0, vw, vh);
+  fctx.clearRect(0, 0, FW, FH);
   drawConstellation(vh);
   updatePhases(T, vh, vw);
   drawRings();
@@ -708,34 +732,26 @@ function stickPos(slot) {
   return { x: slot.offsetLeft + slot.offsetWidth / 2, y: slot.offsetTop + slot.offsetHeight / 2, r: slot.offsetWidth / 2 };
 }
 
-// ---------- 壹 · 星图：星星沿金牛座依次点亮、细线连起来 ----------
+// ---------- 壹 · 星图：星星沿天蝎座依次点亮、细线连起来 ----------
+// 连线是星图里的 SVG，和星星一起随页面滚动；这里只按滚动进度改线的长短
+
+const SKY = $('.sky'), skyLines = [...SKY.querySelectorAll('line')];
+let skyProg = -1;
 
 function drawConstellation(vh) {
-  const box = $('.sky').getBoundingClientRect();
+  const box = SKY.getBoundingClientRect();
   if (box.bottom < 0 || box.top > vh) return;
-  const prog = clamp((vh * 0.82 - box.top) / (box.height * 0.8)) * (csEls.length - 1);
-  const pts = csEls.map(el => {
-    const b = el.firstChild.getBoundingClientRect();
-    return [b.left + b.width / 2, b.top + b.height / 2];
-  });
+  const prog = clamp((vh * 0.82 - box.top) / (box.height * 0.8)) * (CONSTELLATION.length - 1);
+  if (Math.abs(prog - skyProg) < 0.001) return;
+  skyProg = prog;
   csEls.forEach((el, i) => el.classList.toggle('on', prog >= i - 0.05));
-
-  const g = fctx;
-  g.save();
-  g.lineWidth = 0.8;
-  g.strokeStyle = 'rgba(220, 235, 255, .55)';
-  g.shadowColor = 'rgba(150, 200, 255, .9)';
-  g.shadowBlur = 8;
-  g.beginPath();
-  for (let i = 0; i < pts.length - 1; i++) {
-    const f = clamp(prog - i);
-    if (f <= 0) break;
-    const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
-    g.moveTo(ax, ay);
-    g.lineTo(lerp(ax, bx, f), lerp(ay, by, f));
-  }
-  g.stroke();
-  g.restore();
+  skyLines.forEach((ln, k) => {
+    const i = k + 1, b = CONSTELLATION[i], a = CONSTELLATION[b.from ?? i - 1];
+    const f = clamp(prog - k);
+    ln.setAttribute('x1', a.x); ln.setAttribute('y1', a.y);
+    ln.setAttribute('x2', lerp(a.x, b.x, f)); ln.setAttribute('y2', lerp(a.y, b.y, f));
+    ln.style.visibility = f > 0 ? '' : 'hidden';
+  });
 }
 
 // ---------- 贰 · 月相：下滑时主风格依次浮现，副风格绕着它转 ----------
