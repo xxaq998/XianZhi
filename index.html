@@ -551,7 +551,10 @@ function draw() {
   ctx.drawImage(BG, 0, 0);
   ctx.globalAlpha = 1;
   drawSea(T);
-  filter(BLUR);
+  soften();
+
+  // 有的手机浏览器（微信等）加载时报的高度偏小、之后又不发 resize，隔一会儿自己量一次
+  if (frameCount % 30 === 0) windowResized();
 
   if (flowing) {
     rate = min(1, rate + 1 / 150);
@@ -680,6 +683,22 @@ function drawFoam(T) {
   ctx.globalAlpha = 1;
 }
 
+// 柔化：整张画面缩到三分之一再放回来，浪身和拖尾一起晕开
+// 不用 p5 的 filter(BLUR)：它走 WebGL，微信里只处理到屏幕上半截，下面整块变空
+let SOFT;
+function soften() {
+  const ctx = drawingContext, w = W / 3, h = H / 3;
+  if (!SOFT || SOFT.width !== Math.ceil(w) || SOFT.height !== Math.ceil(h)) {
+    SOFT = document.createElement('canvas');
+    SOFT.width = Math.ceil(w); SOFT.height = Math.ceil(h);
+  }
+  const g = SOFT.getContext('2d');
+  g.imageSmoothingEnabled = ctx.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = ctx.imageSmoothingQuality = 'high';
+  g.drawImage(ctx.canvas, 0, 0, w, h);
+  ctx.drawImage(SOFT, 0, 0, w, h, 0, 0, W, H);
+}
+
 function dot(ctx, x, y, r, a) {
   ctx.globalAlpha = a;
   ctx.beginPath();
@@ -733,16 +752,23 @@ function stickPos(slot) {
 }
 
 // ---------- 壹 · 星图：星星沿天蝎座依次点亮、细线连起来 ----------
-// 连线是星图里的 SVG，和星星一起随页面滚动；这里只按滚动进度改线的长短
+// 连线是星图里的 SVG，和星星一起随页面滚动；这里只改线的长短
+// 星图进入视野后按时间一颗接一颗连完，不跟滚动走，滑到一半也不会停在半截
 
 const SKY = $('.sky'), skyLines = [...SKY.querySelectorAll('line')];
-let skyProg = -1;
+const SKY_STEP = 0.42;     // 每连一段用的秒数
+let skyStart = null, skyProg = -1;
 
 function drawConstellation(vh) {
-  const box = SKY.getBoundingClientRect();
-  if (box.bottom < 0 || box.top > vh) return;
-  const prog = clamp((vh * 0.82 - box.top) / (box.height * 0.8)) * (CONSTELLATION.length - 1);
-  if (Math.abs(prog - skyProg) < 0.001) return;
+  const last = CONSTELLATION.length - 1;
+  if (skyProg >= last) return;
+  const now = performance.now() / 1000;
+  if (skyStart === null) {
+    const box = SKY.getBoundingClientRect();
+    if (box.top > vh * 0.75 || box.bottom < 0) return;
+    skyStart = now;
+  }
+  const prog = Math.min(last, (now - skyStart) / SKY_STEP);
   skyProg = prog;
   csEls.forEach((el, i) => el.classList.toggle('on', prog >= i - 0.05));
   skyLines.forEach((ln, k) => {
